@@ -1,33 +1,33 @@
 const STORAGE_SFX = 'daxigua-sfx-enabled';
 const STORAGE_MUSIC = 'daxigua-music-enabled';
 
-/** 音符频率表 */
-const NOTE: Record<string, number> = {
-  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.0, A4: 440.0, B4: 493.88,
-  C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99,
-};
+/** 五声音阶（舒缓不刺耳） */
+const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25];
 
-/** 魔性循环：短促大调琶音 + 低音脉冲 */
-const BGM_MELODY = [
-  { note: 'C5', dur: 0.12 }, { note: 'E5', dur: 0.12 }, { note: 'G5', dur: 0.12 }, { note: 'E5', dur: 0.12 },
-  { note: 'C5', dur: 0.12 }, { note: 'G4', dur: 0.12 }, { note: 'E5', dur: 0.12 }, { note: 'G5', dur: 0.24 },
-  { note: 'D5', dur: 0.12 }, { note: 'F4', dur: 0.12 }, { note: 'A4', dur: 0.12 }, { note: 'F4', dur: 0.12 },
-  { note: 'D5', dur: 0.12 }, { note: 'A4', dur: 0.12 }, { note: 'D5', dur: 0.12 }, { note: 'G5', dur: 0.24 },
-];
+/** 阿尔法节拍差频 10Hz，载体音 220Hz */
+const ALPHA_BEAT_HZ = 10;
+const ALPHA_CARRIER = 220;
 
-const BGM_BASS = [
-  { note: 'C4', dur: 0.48 }, { note: 'C4', dur: 0.48 }, { note: 'G4', dur: 0.48 }, { note: 'G4', dur: 0.48 },
-];
+/** 舒缓旋律循环（C 大调五声，每音 2 拍） */
+const MELODY_PATTERN = [0, 2, 4, 3, 4, 2, 1, 0, 2, 4, 5, 4, 2, 0];
 
-const MERGE_NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'G5'];
+const BEAT_MS = 720;
+const MERGE_NOTES = PENTATONIC;
+
+interface BgmLayer {
+  stop: () => void;
+}
 
 export class AudioManager {
   private static instance: AudioManager | null = null;
   private ctx: AudioContext | null = null;
   private bgmGain: GainNode | null = null;
+  private bgmMasterFilter: BiquadFilterNode | null = null;
   private sfxGain: GainNode | null = null;
-  private bgmTimer: ReturnType<typeof setInterval> | null = null;
-  private bgmStep = 0;
+  private bgmLayer: BgmLayer | null = null;
+  private melodyTimer: ReturnType<typeof setInterval> | null = null;
+  private pulseTimer: ReturnType<typeof setInterval> | null = null;
+  private melodyStep = 0;
   private bgmRunning = false;
   private sfxEnabled = true;
   private musicEnabled = true;
@@ -98,34 +98,45 @@ export class AudioManager {
 
   playDrop(): void {
     if (!this.sfxEnabled) return;
-    void this.playTone(400, 0.08, 'sine', 0.15, -800);
+    void this.playSoftTone(240, 0.1, 0.06, -80);
   }
 
   playMerge(tierIndex: number, isMaxTier: boolean): void {
     if (!this.sfxEnabled) return;
-    const note = MERGE_NOTES[Math.min(tierIndex, MERGE_NOTES.length - 1)];
-    const freq = NOTE[note] ?? 440;
-    void this.playTone(freq, isMaxTier ? 0.25 : 0.12, 'triangle', isMaxTier ? 0.3 : 0.2);
+    const idx = Math.min(tierIndex, MERGE_NOTES.length - 1);
+    const freq = MERGE_NOTES[idx];
+    void this.playSoftTone(freq, isMaxTier ? 0.35 : 0.18, isMaxTier ? 0.1 : 0.07);
     if (isMaxTier) {
-      void this.playTone(freq * 1.25, 0.2, 'sine', 0.15, 0, 0.05);
-      void this.playTone(freq * 1.5, 0.2, 'sine', 0.12, 0, 0.08);
+      void this.playSoftTone(freq * 1.5, 0.28, 0.05, 0, 0.06);
     }
   }
 
   playGameOver(): void {
     if (!this.sfxEnabled) return;
-    void this.playTone(350, 0.4, 'sawtooth', 0.2, -600);
+    void this.playSoftTone(220, 0.5, 0.08, -120);
+    void this.playSoftTone(180, 0.6, 0.06, -80, 0.15);
   }
 
   private async ensureContext(): Promise<AudioContext> {
     if (!this.ctx) {
       this.ctx = new AudioContext();
+      this.bgmMasterFilter = this.ctx.createBiquadFilter();
+      this.bgmMasterFilter.type = 'lowpass';
+      this.bgmMasterFilter.frequency.value = 1400;
+      this.bgmMasterFilter.Q.value = 0.4;
+
       this.bgmGain = this.ctx.createGain();
+      this.bgmGain.gain.value = 0.22;
+      this.bgmGain.connect(this.bgmMasterFilter);
+      this.bgmMasterFilter.connect(this.ctx.destination);
+
       this.sfxGain = this.ctx.createGain();
-      this.bgmGain.gain.value = 0.18;
-      this.sfxGain.gain.value = 0.35;
-      this.bgmGain.connect(this.ctx.destination);
-      this.sfxGain.connect(this.ctx.destination);
+      this.sfxGain.gain.value = 0.2;
+      const sfxFilter = this.ctx.createBiquadFilter();
+      sfxFilter.type = 'lowpass';
+      sfxFilter.frequency.value = 2000;
+      this.sfxGain.connect(sfxFilter);
+      sfxFilter.connect(this.ctx.destination);
     }
     return this.ctx;
   }
@@ -134,48 +145,169 @@ export class AudioManager {
     this.stopBgmLoop();
     if (!this.musicEnabled || !this.bgmRunning) return;
 
-    const tick = () => {
-      if (!this.bgmRunning || !this.musicEnabled) return;
-      const mel = BGM_MELODY[this.bgmStep % BGM_MELODY.length];
-      const bass = BGM_BASS[Math.floor(this.bgmStep / 4) % BGM_BASS.length];
-      void this.playBgmNote(NOTE[mel.note] ?? 440, mel.dur, 'square', 0.06);
-      if (this.bgmStep % 2 === 0) {
-        void this.playBgmNote(NOTE[bass.note] ?? 130, bass.dur, 'triangle', 0.1);
-      }
-      this.bgmStep++;
-    };
+    void this.ensureContext().then((ctx) => {
+      if (!this.bgmGain || !this.bgmRunning) return;
 
-    tick();
-    this.bgmTimer = setInterval(tick, 120);
+      this.bgmLayer = this.createAlphaBinauralLayer(ctx);
+      this.melodyStep = 0;
+
+      const playMelody = () => {
+        if (!this.bgmRunning || !this.musicEnabled) return;
+        const noteIdx = MELODY_PATTERN[this.melodyStep % MELODY_PATTERN.length];
+        const freq = PENTATONIC[noteIdx] ?? 440;
+        void this.playBgmPad(freq, BEAT_MS * 2.5);
+        this.melodyStep++;
+      };
+
+      const playPulse = () => {
+        if (!this.bgmRunning || !this.musicEnabled) return;
+        void this.playBgmPulse();
+      };
+
+      playMelody();
+      playPulse();
+      this.melodyTimer = setInterval(playMelody, BEAT_MS * 2);
+      this.pulseTimer = setInterval(playPulse, BEAT_MS);
+    });
+  }
+
+  /** 持续阿尔法双声拍层 + 柔和环境垫音 */
+  private createAlphaBinauralLayer(ctx: AudioContext): BgmLayer {
+    const t = ctx.currentTime;
+    const merger = ctx.createChannelMerger(2);
+    const layerGain = ctx.createGain();
+    layerGain.gain.value = 0.035;
+
+    const left = ctx.createOscillator();
+    left.type = 'sine';
+    left.frequency.value = ALPHA_CARRIER;
+
+    const right = ctx.createOscillator();
+    right.type = 'sine';
+    right.frequency.value = ALPHA_CARRIER + ALPHA_BEAT_HZ;
+
+    left.connect(merger, 0, 0);
+    right.connect(merger, 0, 1);
+    merger.connect(layerGain);
+    layerGain.connect(this.bgmGain!);
+
+    left.start(t);
+    right.start(t);
+
+    const droneGain = ctx.createGain();
+    droneGain.gain.value = 0.025;
+    const droneFilter = ctx.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.value = 400;
+
+    const drone1 = ctx.createOscillator();
+    drone1.type = 'sine';
+    drone1.frequency.value = 130.81;
+    const drone2 = ctx.createOscillator();
+    drone2.type = 'sine';
+    drone2.frequency.value = 196.0;
+
+    drone1.connect(droneFilter);
+    drone2.connect(droneFilter);
+    droneFilter.connect(droneGain);
+    droneGain.connect(this.bgmGain!);
+    drone1.start(t);
+    drone2.start(t);
+
+    const alphaLfo = ctx.createOscillator();
+    alphaLfo.type = 'sine';
+    alphaLfo.frequency.value = ALPHA_BEAT_HZ;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.012;
+    alphaLfo.connect(lfoGain);
+    lfoGain.connect(layerGain.gain);
+    alphaLfo.start(t);
+
+    return {
+      stop: () => {
+        const stopT = ctx.currentTime + 0.05;
+        try {
+          left.stop(stopT);
+          right.stop(stopT);
+          drone1.stop(stopT);
+          drone2.stop(stopT);
+          alphaLfo.stop(stopT);
+        } catch { /* already stopped */ }
+      },
+    };
   }
 
   private stopBgmLoop(): void {
-    if (this.bgmTimer) {
-      clearInterval(this.bgmTimer);
-      this.bgmTimer = null;
+    if (this.melodyTimer) {
+      clearInterval(this.melodyTimer);
+      this.melodyTimer = null;
     }
+    if (this.pulseTimer) {
+      clearInterval(this.pulseTimer);
+      this.pulseTimer = null;
+    }
+    this.bgmLayer?.stop();
+    this.bgmLayer = null;
   }
 
-  private async playBgmNote(freq: number, dur: number, type: OscillatorType, volume: number): Promise<void> {
+  /** 柔和垫音 */
+  private async playBgmPad(freq: number, holdMs: number): Promise<void> {
     const ctx = await this.ensureContext();
-    if (!this.bgmGain || ctx.state !== 'running') return;
+    if (!this.bgmGain || ctx.state !== 'running' || !this.bgmRunning) return;
 
+    const t = ctx.currentTime;
+    const dur = holdMs / 1000;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = type;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 900;
+
+    osc.type = 'sine';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-    osc.connect(gain);
+
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.055, t + 0.25);
+    gain.gain.setValueAtTime(0.045, t + dur * 0.6);
+    gain.gain.linearRampToValueAtTime(0.001, t + dur);
+
+    osc.connect(filter);
+    filter.connect(gain);
     gain.connect(this.bgmGain);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + dur + 0.02);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
   }
 
-  private async playTone(
+  /** 节拍脉冲（类似轻柔心跳） */
+  private async playBgmPulse(): Promise<void> {
+    const ctx = await this.ensureContext();
+    if (!this.bgmGain || ctx.state !== 'running' || !this.bgmRunning) return;
+
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 180;
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(72, t);
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.12);
+
+    gain.gain.setValueAtTime(0.07, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.bgmGain);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+
+  /** 柔和音效（低通 + 正弦，无刺耳波形） */
+  private async playSoftTone(
     freq: number,
     dur: number,
-    type: OscillatorType,
     volume: number,
     freqSlide = 0,
     delay = 0,
@@ -187,17 +319,26 @@ export class AudioManager {
     const t = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = type;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1600;
+    filter.Q.value = 0.5;
+
+    osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, t);
     if (freqSlide !== 0) {
-      osc.frequency.linearRampToValueAtTime(Math.max(50, freq + freqSlide), t + dur);
+      osc.frequency.linearRampToValueAtTime(Math.max(60, freq + freqSlide), t + dur);
     }
-    gain.gain.setValueAtTime(volume, t);
+
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(volume, t + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    osc.connect(gain);
+
+    osc.connect(filter);
+    filter.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(t);
-    osc.stop(t + dur + 0.02);
+    osc.stop(t + dur + 0.05);
   }
 }
 
