@@ -1,5 +1,7 @@
 import { GAME_CONFIG } from '../config/gameConfig.ts';
-import type { FruitTier, GameCallbacks } from '../types/index.ts';
+import type { FruitTier, GameCallbacks, MergeEvent } from '../types/index.ts';
+import { ParticleSystem } from '../effects/ParticleSystem.ts';
+import { ScreenShake } from '../effects/ScreenShake.ts';
 import { PhysicsWorld } from './PhysicsWorld.ts';
 import { ScoreManager } from './ScoreManager.ts';
 
@@ -12,6 +14,8 @@ export class GameEngine {
   private bgCtx: CanvasRenderingContext2D;
   private physics: PhysicsWorld | null = null;
   private scoreManager = new ScoreManager();
+  private particles = new ParticleSystem();
+  private screenShake = new ScreenShake();
   private animationId = 0;
   private lastTime = 0;
   private accumulator = 0;
@@ -45,9 +49,18 @@ export class GameEngine {
     this.lastHudTier = -1;
     this.lastHudScore = -1;
     this.accumulator = 0;
+    this.particles.clear();
+    this.screenShake.reset();
     this.callbacks.onScoreChange(0);
     this.physics?.destroy();
-    this.physics = new PhysicsWorld(tiers, this.callbacks, this.scoreManager);
+
+    const wrappedCallbacks: GameCallbacks = {
+      onScoreChange: this.callbacks.onScoreChange,
+      onGameOver: this.callbacks.onGameOver,
+      onMerge: (event) => this.handleMerge(event),
+    };
+
+    this.physics = new PhysicsWorld(tiers, wrappedCallbacks, this.scoreManager);
     this.isRunning = true;
     this.lastTime = performance.now();
     this.loop(this.lastTime);
@@ -65,6 +78,8 @@ export class GameEngine {
     this.stop();
     this.physics?.destroy();
     this.physics = null;
+    this.particles.clear();
+    this.screenShake.reset();
   }
 
   getPhysics(): PhysicsWorld | null {
@@ -96,6 +111,13 @@ export class GameEngine {
     return { score, tierIndex };
   }
 
+  private handleMerge(event: MergeEvent): void {
+    const tier = this.tiers[event.tierIndex];
+    this.particles.emit(event, tier?.color ?? '#e74c3c');
+    this.screenShake.trigger(event.tierIndex, event.isMaxTier);
+    this.callbacks.onMerge(event);
+  }
+
   private loop = (time: number): void => {
     if (!this.isRunning || !this.physics) return;
 
@@ -110,6 +132,8 @@ export class GameEngine {
       steps++;
     }
 
+    this.particles.update(frameDt);
+    this.screenShake.update(frameDt);
     this.render();
     this.animationId = requestAnimationFrame(this.loop);
   };
@@ -141,6 +165,10 @@ export class GameEngine {
     const { ctx, physics, tiers } = this;
     if (!physics) return;
 
+    const shake = this.screenShake.getOffset();
+    ctx.save();
+    ctx.translate(shake.x, shake.y);
+
     ctx.drawImage(this.bgCanvas, 0, 0);
 
     const bodies = physics.getFruitBodies();
@@ -153,12 +181,16 @@ export class GameEngine {
       this.drawFruit(body.position.x, body.position.y, tier, false);
     }
 
+    this.particles.draw(ctx);
+
     if (!physics.getIsDropping()) {
       const previewTier = tiers[physics.getCurrentDropTier()];
       if (previewTier) {
         this.drawFruit(physics.getDropX(), GAME_CONFIG.dropPreviewY, previewTier, true);
       }
     }
+
+    ctx.restore();
   }
 
   private drawFruit(x: number, y: number, tier: FruitTier, isPreview: boolean): void {

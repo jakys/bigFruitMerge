@@ -1,30 +1,61 @@
 import type { FruitTier } from '../types/index.ts';
+import { audioManager } from '../audio/AudioManager.ts';
 
 export interface GameHUDState {
   score: number;
   nextTier: FruitTier | null;
 }
 
-export function createGameHUD(container: HTMLElement): {
+export interface GameHUDCallbacks {
+  onBack: () => void;
+}
+
+export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallbacks): {
   el: HTMLElement;
   update: (state: GameHUDState) => void;
+  syncAudioToggles: () => void;
 } {
   const el = document.createElement('div');
   el.className = 'game-hud';
   el.innerHTML = `
     <div class="hud-top">
       <button class="btn btn-ghost btn-sm" data-action="back">← 菜单</button>
+      <div class="hud-controls">
+        <button class="btn btn-toggle btn-sm" data-action="sfx" title="音效开关">🔊 音效</button>
+        <button class="btn btn-toggle btn-sm" data-action="music" title="音乐开关">🎵 音乐</button>
+      </div>
       <div class="score-display">得分: <span id="score-value">0</span></div>
     </div>
     <div class="next-preview">
       <span>下一个</span>
       <canvas id="next-canvas" width="64" height="64"></canvas>
     </div>
-    <p class="game-hint">移动控制位置 · 点击释放</p>
+    <p class="game-hint">手指按住定位 · 松手释放</p>
   `;
 
   const scoreEl = el.querySelector('#score-value') as HTMLElement;
   const nextCanvas = el.querySelector('#next-canvas') as HTMLCanvasElement;
+  const sfxBtn = el.querySelector('[data-action="sfx"]') as HTMLButtonElement;
+  const musicBtn = el.querySelector('[data-action="music"]') as HTMLButtonElement;
+
+  function syncAudioToggles(): void {
+    sfxBtn.classList.toggle('off', !audioManager.isSfxEnabled());
+    sfxBtn.textContent = audioManager.isSfxEnabled() ? '🔊 音效' : '🔇 音效';
+    musicBtn.classList.toggle('off', !audioManager.isMusicEnabled());
+    musicBtn.textContent = audioManager.isMusicEnabled() ? '🎵 音乐' : '🔕 音乐';
+  }
+
+  sfxBtn.addEventListener('click', () => {
+    audioManager.toggleSfx();
+    syncAudioToggles();
+  });
+
+  musicBtn.addEventListener('click', () => {
+    audioManager.toggleMusic();
+    syncAudioToggles();
+  });
+
+  el.querySelector('[data-action="back"]')?.addEventListener('click', callbacks.onBack);
 
   function update(state: GameHUDState): void {
     scoreEl.textContent = String(state.score);
@@ -57,10 +88,7 @@ export function createGameHUD(container: HTMLElement): {
     ctx.restore();
   }
 
+  syncAudioToggles();
   container.appendChild(el);
-  return { el, update };
-}
-
-export function bindBackButton(hud: HTMLElement, onBack: () => void): void {
-  hud.querySelector('[data-action="back"]')?.addEventListener('click', onBack);
+  return { el, update, syncAudioToggles };
 }

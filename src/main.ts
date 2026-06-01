@@ -1,10 +1,11 @@
 import './style.css';
+import { audioManager } from './audio/AudioManager.ts';
 import { GAME_CONFIG } from './config/gameConfig.ts';
 import { buildCustomFruitTiers, getDefaultFruitTiers } from './config/defaultFruits.ts';
 import { GameEngine } from './game/GameEngine.ts';
 import { loadCustomFruitSet } from './storage/imageStore.ts';
-import type { CustomImageEntry, FruitTier } from './types/index.ts';
-import { bindBackButton, createGameHUD } from './ui/GameHUD.ts';
+import type { CustomImageEntry, FruitTier, MergeEvent } from './types/index.ts';
+import { createGameHUD } from './ui/GameHUD.ts';
 import { showGameOverModal, removeGameOverModal } from './ui/GameOverModal.ts';
 import { createMainMenu, removeScreen } from './ui/MainMenu.ts';
 import { createUploadPanel } from './ui/UploadPanel.ts';
@@ -25,6 +26,7 @@ async function init(): Promise<void> {
 }
 
 function clearGame(): void {
+  audioManager.stopBgm();
   gameEngine?.destroy();
   gameEngine = null;
   canvasEl = null;
@@ -105,20 +107,26 @@ function startGame(): void {
   gameWrap.appendChild(canvasEl);
   app.appendChild(gameWrap);
 
-  hudController = createGameHUD(app);
-  bindBackButton(hudController.el, () => {
-    if (confirm('确定返回主菜单？当前进度将丢失。')) showMenu();
+  hudController = createGameHUD(app, {
+    onBack: () => {
+      if (confirm('确定返回主菜单？当前进度将丢失。')) showMenu();
+    },
   });
 
   gameEngine = new GameEngine(canvasEl, {
     onScoreChange: (score) => updateHUD(score),
     onGameOver: (score) => {
+      audioManager.playGameOver();
+      audioManager.stopBgm();
       gameOverEl = showGameOverModal(app, score, {
         onRestart: () => startGame(),
         onMenu: showMenu,
       });
     },
-    onMerge: () => updateHUD(),
+    onMerge: (event: MergeEvent) => {
+      audioManager.playMerge(event.tierIndex, event.isMaxTier);
+      updateHUD();
+    },
   });
 
   setupInput(canvasEl);
@@ -152,17 +160,41 @@ function updateHUD(score?: number): void {
 }
 
 function setupInput(canvas: HTMLCanvasElement): void {
+  let lastTouchEnd = 0;
+
+  const unlockAudio = () => {
+    void audioManager.unlock();
+    void audioManager.startBgm();
+  };
+
   const onMove = (clientX: number) => gameEngine?.handlePointerMove(clientX, 0);
-  const onDrop = () => gameEngine?.handleDrop();
+  const onDrop = () => {
+    unlockAudio();
+    audioManager.playDrop();
+    gameEngine?.handleDrop();
+  };
 
   canvas.addEventListener('mousemove', (e) => onMove(e.clientX));
+  canvas.addEventListener('mousedown', (e) => {
+    unlockAudio();
+    onMove(e.clientX);
+  });
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    unlockAudio();
+    if (e.touches[0]) onMove(e.touches[0].clientX);
+  }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     if (e.touches[0]) onMove(e.touches[0].clientX);
   }, { passive: false });
-  canvas.addEventListener('click', onDrop);
   canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
+    lastTouchEnd = Date.now();
+    onDrop();
+  });
+  canvas.addEventListener('click', () => {
+    if (Date.now() - lastTouchEnd < 400) return;
     onDrop();
   });
 }

@@ -274,8 +274,30 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 420px;
+  gap: 8px;
+  max-width: 480px;
   margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.hud-controls {
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.btn-toggle {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  border: 1px solid #ddd;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.btn-toggle.off {
+  opacity: 0.55;
+  background: rgba(240, 240, 240, 0.9);
 }
 
 .score-display {
