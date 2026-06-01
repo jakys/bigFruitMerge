@@ -1,5 +1,6 @@
 import type { FruitTier } from '../types/index.ts';
 import { audioManager } from '../audio/AudioManager.ts';
+import type { BgmPresetId, SfxPresetId } from '../audio/audioTypes.ts';
 
 export interface GameHUDState {
   score: number;
@@ -20,11 +21,23 @@ export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallback
   el.innerHTML = `
     <div class="hud-top">
       <button class="btn btn-ghost btn-sm" data-action="back">← 菜单</button>
+      <div class="score-display">得分: <span id="score-value">0</span></div>
+    </div>
+    <div class="hud-audio-row">
       <div class="hud-controls">
         <button class="btn btn-toggle btn-sm" data-action="sfx" title="音效开关">🔊 音效</button>
         <button class="btn btn-toggle btn-sm" data-action="music" title="音乐开关">🎵 音乐</button>
       </div>
-      <div class="score-display">得分: <span id="score-value">0</span></div>
+      <div class="hud-selects">
+        <label class="hud-select-label">
+          <span>BGM</span>
+          <select id="bgm-preset" class="hud-select"></select>
+        </label>
+        <label class="hud-select-label">
+          <span>音效</span>
+          <select id="sfx-preset" class="hud-select"></select>
+        </label>
+      </div>
     </div>
     <div class="next-preview">
       <span>下一个</span>
@@ -37,12 +50,29 @@ export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallback
   const nextCanvas = el.querySelector('#next-canvas') as HTMLCanvasElement;
   const sfxBtn = el.querySelector('[data-action="sfx"]') as HTMLButtonElement;
   const musicBtn = el.querySelector('[data-action="music"]') as HTMLButtonElement;
+  const bgmSelect = el.querySelector('#bgm-preset') as HTMLSelectElement;
+  const sfxSelect = el.querySelector('#sfx-preset') as HTMLSelectElement;
+
+  for (const p of audioManager.getBgmPresets()) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.label;
+    bgmSelect.appendChild(opt);
+  }
+  for (const p of audioManager.getSfxPresets()) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.label;
+    sfxSelect.appendChild(opt);
+  }
 
   function syncAudioToggles(): void {
     sfxBtn.classList.toggle('off', !audioManager.isSfxEnabled());
     sfxBtn.textContent = audioManager.isSfxEnabled() ? '🔊 音效' : '🔇 音效';
     musicBtn.classList.toggle('off', !audioManager.isMusicEnabled());
     musicBtn.textContent = audioManager.isMusicEnabled() ? '🎵 音乐' : '🔕 音乐';
+    bgmSelect.value = audioManager.getBgmPresetId();
+    sfxSelect.value = audioManager.getSfxPresetId();
   }
 
   sfxBtn.addEventListener('click', () => {
@@ -52,6 +82,16 @@ export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallback
 
   musicBtn.addEventListener('click', () => {
     audioManager.toggleMusic();
+    syncAudioToggles();
+  });
+
+  bgmSelect.addEventListener('change', () => {
+    audioManager.setBgmPreset(bgmSelect.value as BgmPresetId);
+    syncAudioToggles();
+  });
+
+  sfxSelect.addEventListener('change', () => {
+    audioManager.setSfxPreset(sfxSelect.value as SfxPresetId);
     syncAudioToggles();
   });
 

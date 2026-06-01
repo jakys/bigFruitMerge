@@ -280,6 +280,44 @@ body {
   flex-wrap: wrap;
 }
 
+.hud-audio-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  pointer-events: auto;
+}
+
+.hud-selects {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hud-select-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.hud-select {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+  max-width: 130px;
+  background: #fff;
+  color: var(--text);
+}
+
 .hud-controls {
   display: flex;
   gap: 6px;

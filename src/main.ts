@@ -162,26 +162,26 @@ function updateHUD(score?: number): void {
 function setupInput(canvas: HTMLCanvasElement): void {
   let lastTouchEnd = 0;
 
-  const unlockAudio = () => {
-    void audioManager.unlock();
+  /** 首次交互启动 BGM，之后只恢复上下文，不重头播放 */
+  const startBgmOnce = () => {
     void audioManager.startBgm();
   };
 
   const onMove = (clientX: number) => gameEngine?.handlePointerMove(clientX, 0);
   const onDrop = () => {
-    unlockAudio();
+    void audioManager.resumeContext();
     audioManager.playDrop();
     gameEngine?.handleDrop();
   };
 
   canvas.addEventListener('mousemove', (e) => onMove(e.clientX));
   canvas.addEventListener('mousedown', (e) => {
-    unlockAudio();
+    startBgmOnce();
     onMove(e.clientX);
   });
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    unlockAudio();
+    startBgmOnce();
     if (e.touches[0]) onMove(e.touches[0].clientX);
   }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
@@ -195,6 +195,7 @@ function setupInput(canvas: HTMLCanvasElement): void {
   });
   canvas.addEventListener('click', () => {
     if (Date.now() - lastTouchEnd < 400) return;
+    startBgmOnce();
     onDrop();
   });
 }
