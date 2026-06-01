@@ -9,6 +9,7 @@ import { createGameHUD } from './ui/GameHUD.ts';
 import { showGameOverModal, removeGameOverModal } from './ui/GameOverModal.ts';
 import { createMainMenu, removeScreen } from './ui/MainMenu.ts';
 import { createUploadPanel } from './ui/UploadPanel.ts';
+import { setupCanvasDpi } from './utils/canvasDpi.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 let screenEl: HTMLElement | null = null;
@@ -96,22 +97,31 @@ function startGame(): void {
   removeScreen(screenEl);
   app.innerHTML = '';
 
-  const gameWrap = document.createElement('div');
-  gameWrap.className = 'game-wrap';
+  const gameScreen = document.createElement('div');
+  gameScreen.className = 'game-screen';
 
-  canvasEl = document.createElement('canvas');
-  canvasEl.width = GAME_CONFIG.width;
-  canvasEl.height = GAME_CONFIG.height;
-  canvasEl.className = 'game-canvas';
-
-  gameWrap.appendChild(canvasEl);
-  app.appendChild(gameWrap);
-
-  hudController = createGameHUD(app, {
+  hudController = createGameHUD(gameScreen, {
     onBack: () => {
       if (confirm('确定返回主菜单？当前进度将丢失。')) showMenu();
     },
   });
+
+  const gameWrap = document.createElement('div');
+  gameWrap.className = 'game-wrap';
+
+  canvasEl = document.createElement('canvas');
+  canvasEl.className = 'game-canvas';
+  setupCanvasDpi(canvasEl, GAME_CONFIG.width, GAME_CONFIG.height);
+
+  gameWrap.appendChild(canvasEl);
+  gameScreen.appendChild(gameWrap);
+
+  const hint = document.createElement('p');
+  hint.className = 'game-hint';
+  hint.textContent = '手指按住定位 · 松手释放';
+  gameScreen.appendChild(hint);
+
+  app.appendChild(gameScreen);
 
   gameEngine = new GameEngine(canvasEl, {
     onScoreChange: (score) => updateHUD(score),

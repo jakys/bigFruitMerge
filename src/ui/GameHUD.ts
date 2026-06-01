@@ -1,6 +1,9 @@
 import type { FruitTier } from '../types/index.ts';
 import { audioManager } from '../audio/AudioManager.ts';
 import type { BgmPresetId, SfxPresetId } from '../audio/audioTypes.ts';
+import { setupPreviewCanvasDpi } from '../utils/canvasDpi.ts';
+
+const NEXT_PREVIEW_SIZE = 48;
 
 export interface GameHUDState {
   score: number;
@@ -17,37 +20,36 @@ export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallback
   syncAudioToggles: () => void;
 } {
   const el = document.createElement('div');
-  el.className = 'game-hud';
+  el.className = 'game-toolbar';
   el.innerHTML = `
-    <div class="hud-top">
+    <div class="toolbar-row toolbar-main">
       <button class="btn btn-ghost btn-sm" data-action="back">← 菜单</button>
       <div class="score-display">得分: <span id="score-value">0</span></div>
-    </div>
-    <div class="hud-audio-row">
-      <div class="hud-controls">
-        <button class="btn btn-toggle btn-sm" data-action="sfx" title="音效开关">🔊 音效</button>
-        <button class="btn btn-toggle btn-sm" data-action="music" title="音乐开关">🎵 音乐</button>
+      <div class="next-preview">
+        <span>下一个</span>
+        <canvas id="next-canvas"></canvas>
       </div>
-      <div class="hud-selects">
-        <label class="hud-select-label">
-          <span>BGM</span>
-          <select id="bgm-preset" class="hud-select"></select>
-        </label>
-        <label class="hud-select-label">
-          <span>音效</span>
-          <select id="sfx-preset" class="hud-select"></select>
-        </label>
+      <div class="toolbar-actions">
+        <button class="btn btn-toggle btn-sm" data-action="sfx" title="音效开关">🔊</button>
+        <button class="btn btn-toggle btn-sm" data-action="music" title="音乐开关">🎵</button>
       </div>
     </div>
-    <div class="next-preview">
-      <span>下一个</span>
-      <canvas id="next-canvas" width="64" height="64"></canvas>
+    <div class="toolbar-row toolbar-settings">
+      <label class="hud-select-label">
+        <span>BGM</span>
+        <select id="bgm-preset" class="hud-select"></select>
+      </label>
+      <label class="hud-select-label">
+        <span>音效</span>
+        <select id="sfx-preset" class="hud-select"></select>
+      </label>
     </div>
-    <p class="game-hint">手指按住定位 · 松手释放</p>
   `;
 
   const scoreEl = el.querySelector('#score-value') as HTMLElement;
   const nextCanvas = el.querySelector('#next-canvas') as HTMLCanvasElement;
+  setupPreviewCanvasDpi(nextCanvas, NEXT_PREVIEW_SIZE);
+
   const sfxBtn = el.querySelector('[data-action="sfx"]') as HTMLButtonElement;
   const musicBtn = el.querySelector('[data-action="music"]') as HTMLButtonElement;
   const bgmSelect = el.querySelector('#bgm-preset') as HTMLSelectElement;
@@ -68,9 +70,9 @@ export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallback
 
   function syncAudioToggles(): void {
     sfxBtn.classList.toggle('off', !audioManager.isSfxEnabled());
-    sfxBtn.textContent = audioManager.isSfxEnabled() ? '🔊 音效' : '🔇 音效';
+    sfxBtn.textContent = audioManager.isSfxEnabled() ? '🔊' : '🔇';
     musicBtn.classList.toggle('off', !audioManager.isMusicEnabled());
-    musicBtn.textContent = audioManager.isMusicEnabled() ? '🎵 音乐' : '🔕 音乐';
+    musicBtn.textContent = audioManager.isMusicEnabled() ? '🎵' : '🔕';
     bgmSelect.value = audioManager.getBgmPresetId();
     sfxSelect.value = audioManager.getSfxPresetId();
   }
@@ -101,13 +103,14 @@ export function createGameHUD(container: HTMLElement, callbacks: GameHUDCallback
     scoreEl.textContent = String(state.score);
     const ctx = nextCanvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, 64, 64);
+    const size = NEXT_PREVIEW_SIZE;
+    ctx.clearRect(0, 0, size, size);
     if (!state.nextTier) return;
 
     const tier = state.nextTier;
-    const r = Math.min(28, tier.radius * 0.55);
-    const cx = 32;
-    const cy = 32;
+    const r = Math.min(size * 0.42, tier.radius * 0.55);
+    const cx = size / 2;
+    const cy = size / 2;
 
     ctx.save();
     ctx.beginPath();

@@ -24,8 +24,8 @@ export class AudioManager {
   private bgmRunning = false;
   private sfxEnabled = true;
   private musicEnabled = true;
-  private bgmPresetId: BgmPresetId = 'alphaSleep';
-  private sfxPresetId: SfxPresetId = 'soft';
+  private bgmPresetId: BgmPresetId = 'funkyLoop';
+  private sfxPresetId: SfxPresetId = 'asmr';
 
   private constructor() {
     this.sfxEnabled = localStorage.getItem(STORAGE_SFX) !== 'false';
@@ -182,12 +182,12 @@ export class AudioManager {
       this.bgmMasterFilter.Q.value = 0.4;
 
       this.bgmGain = this.ctx.createGain();
-      this.bgmGain.gain.value = 0.22;
+      this.bgmGain.gain.value = 0.52;
       this.bgmGain.connect(this.bgmMasterFilter);
       this.bgmMasterFilter.connect(this.ctx.destination);
 
       this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.value = 0.2;
+      this.sfxGain.gain.value = 0.48;
       const sfxFilter = this.ctx.createBiquadFilter();
       sfxFilter.type = 'lowpass';
       sfxFilter.frequency.value = 2200;

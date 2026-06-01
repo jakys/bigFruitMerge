@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from '../config/gameConfig.ts';
+import { clientXToGameX } from '../utils/canvasDpi.ts';
 import type { FruitTier, GameCallbacks, MergeEvent } from '../types/index.ts';
 import { ParticleSystem } from '../effects/ParticleSystem.ts';
 import { ScreenShake } from '../effects/ScreenShake.ts';
@@ -32,10 +33,12 @@ export class GameEngine {
     this.ctx = ctx;
 
     this.bgCanvas = document.createElement('canvas');
-    this.bgCanvas.width = GAME_CONFIG.width;
-    this.bgCanvas.height = GAME_CONFIG.height;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    this.bgCanvas.width = Math.round(GAME_CONFIG.width * dpr);
+    this.bgCanvas.height = Math.round(GAME_CONFIG.height * dpr);
     const bgCtx = this.bgCanvas.getContext('2d');
     if (!bgCtx) throw new Error('Background canvas unavailable');
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.bgCtx = bgCtx;
     this.drawStaticBackground();
 
@@ -91,9 +94,7 @@ export class GameEngine {
   }
 
   handlePointerMove(clientX: number, _clientY: number): void {
-    const rect = this.canvas.getBoundingClientRect();
-    const scaleX = this.canvas.width / rect.width;
-    const x = (clientX - rect.left) * scaleX;
+    const x = clientXToGameX(this.canvas, clientX, GAME_CONFIG.width);
     this.physics?.setDropX(x);
   }
 
@@ -139,8 +140,8 @@ export class GameEngine {
   };
 
   private drawStaticBackground(): void {
-    const { bgCtx, bgCanvas } = this;
-    const { width, height } = bgCanvas;
+    const { bgCtx } = this;
+    const { width, height } = GAME_CONFIG;
 
     bgCtx.fillStyle = '#fff8e7';
     bgCtx.fillRect(0, 0, width, height);
@@ -169,7 +170,7 @@ export class GameEngine {
     ctx.save();
     ctx.translate(shake.x, shake.y);
 
-    ctx.drawImage(this.bgCanvas, 0, 0);
+    ctx.drawImage(this.bgCanvas, 0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
 
     const bodies = physics.getFruitBodies();
     for (let i = 0; i < bodies.length; i++) {
