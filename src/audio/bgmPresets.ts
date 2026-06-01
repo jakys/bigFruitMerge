@@ -1,4 +1,5 @@
 import type { BgmSession } from './audioTypes.ts';
+import { startAsmrItemsLoopBgm } from './asmrItemBgm.ts';
 
 const NOTE: Record<string, number> = {
   C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.0, A4: 440.0, B4: 493.88,
@@ -364,4 +365,5 @@ export const BGM_STARTERS: Record<string, BgmStarter> = {
   hyperMerge: startHyperMergeBgm,
   chipDance: startChipDanceBgm,
   funkyLoop: startFunkyLoopBgm,
+  asmrItems: startAsmrItemsLoopBgm,
 };

@@ -8,7 +8,8 @@ export type BgmPresetId =
   | 'suikaPop'
   | 'hyperMerge'
   | 'chipDance'
-  | 'funkyLoop';
+  | 'funkyLoop'
+  | 'asmrItems';
 
 export type SfxPresetId = 'soft' | 'asmr' | 'bubble' | 'zen' | 'retro';
 
@@ -33,6 +34,7 @@ export const BGM_PRESETS: BgmPresetInfo[] = [
   { id: 'hyperMerge', label: '超魔性循环' },
   { id: 'chipDance', label: '芯片舞曲' },
   { id: 'funkyLoop', label: '放克律动' },
+  { id: 'asmrItems', label: 'ASMR物语循环' },
 ];
 
 export const SFX_PRESETS: SfxPresetInfo[] = [
